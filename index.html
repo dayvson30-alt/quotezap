@@ -177,6 +177,22 @@ table.prices input::placeholder{color:var(--muted);font-family:var(--f-body);fon
 .welcome{background:var(--accent-soft);color:var(--ink);border-bottom:1px solid var(--line);padding:14px 0;font-size:15px}
 .welcome .wrap{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .welcome button{background:none;border:0;color:var(--muted);font:inherit;cursor:pointer;padding:4px 8px}
+.welcome a{color:var(--accent)}
+.acc{font-size:13px;color:var(--muted);margin:8px 0 0;line-height:1.5}
+.acc a{color:var(--accent)}
+.paywall{border:1px solid var(--line);border-radius:18px;background:var(--surface);color:var(--ink);padding:26px 22px 18px;width:min(440px,calc(100% - 32px));box-shadow:0 24px 60px rgba(0,0,0,.25)}
+.paywall::backdrop{background:rgba(8,20,22,.55)}
+.paywall h3{margin:0 32px 8px 0;font-size:20px;line-height:1.25}
+.paywall p{margin:0 0 14px;font-size:15px;line-height:1.5}
+.paywall .fine{font-size:13px;color:var(--muted);margin:8px 0 0}
+.paywall .fine a{color:var(--accent)}
+.paywall hr{border:0;border-top:1px solid var(--line);margin:18px 0 14px}
+.paywall .lab{display:block;font-weight:700;font-size:14px;margin-bottom:8px}
+.pw-x{position:absolute;top:10px;right:10px;margin:0}
+.pw-x button{background:none;border:0;color:var(--muted);font-size:18px;cursor:pointer;padding:6px 10px}
+.pw-row{display:flex;gap:8px}
+.pw-row .input{flex:1;text-transform:uppercase}
+.pw-err{min-height:1.2em;font-size:13px;color:var(--muted);margin:8px 0 0!important}
 footer nav{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
 footer a{color:var(--muted)}
 .signup{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:start}
@@ -422,18 +438,122 @@ footer{padding-block:28px 40px;border-top:1px solid var(--line);color:var(--mute
   </div>
 </footer>
 
+<dialog class="paywall" id="paywall" aria-labelledby="pw-t">
+  <form method="dialog" class="pw-x"><button type="submit" aria-label="Fechar">✕</button></form>
+  <h3 id="pw-t">Enviar orçamentos é do plano Pro</h3>
+  <p>Monte quantos orçamentos quiser para testar. Para <b>enviar no WhatsApp, copiar ou baixar o PDF</b>, assine. Os primeiros 7 dias são grátis.</p>
+  <a class="btn btn-primary" id="pw-buy" href="https://buy.stripe.com/4gMfZg8pa0jlcii8zyaAw00" rel="noopener">Começar 7 dias grátis</a>
+  <p class="fine">Pede o cartão, mas nada é cobrado nos 7 dias. Cancele quando quiser.</p>
+  <hr>
+  <form id="pw-form" novalidate>
+    <label class="lab" for="pw-code">Já assinou? Digite seu código de acesso</label>
+    <div class="pw-row"><input class="input mono" id="pw-code" placeholder="QZ-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn btn-primary" type="submit" id="pw-go">Entrar</button></div>
+    <p class="pw-err" id="pw-err" role="alert"></p>
+    <p class="fine">Perdeu o código? <a href="https://wa.me/14073755223?text=Oi!%20Perdi%20meu%20c%C3%B3digo%20do%20QuoteZap.%20Meu%20e-mail%20da%20assinatura%20%C3%A9%3A%20" target="_blank" rel="noopener">Fale com a gente no WhatsApp</a> com o e-mail da assinatura.</p>
+  </form>
+</dialog>
+
 <script>
+/* ---------- acesso (assinatura Stripe → n8n) ---------- */
 (function(){
-  try{
-    var q=new URLSearchParams(location.search);
-    if(q.get('assinatura')!=='ok') return;
-    var bar=document.createElement('div');
-    bar.className='welcome'; bar.setAttribute('role','status');
-    bar.innerHTML='<div class="wrap"><span><b>Assinatura confirmada!</b> Seu teste de 7 dias começou. O recibo chega no seu e-mail. Configure sua tabela em “Minha tabela”.</span><button type="button" aria-label="Fechar aviso">✕</button></div>';
+  var API='https://n8n.urbancleanfl.com/webhook/quotezap-access';
+  var KEY='quotezap.access';
+  var GRACE=3*24*3600*1000; // sem internet, o acesso confirmado vale por 3 dias
+  var PORTAL=''; // link de login do Portal do Cliente Stripe (billing.stripe.com/p/login/...)
+  var st=load();
+
+  function load(){try{return JSON.parse(localStorage.getItem(KEY))||{}}catch(e){return{}}}
+  function store(next){st=next;try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}paint()}
+  function active(){return !!(st.active&&st.checkedAt&&Date.now()-st.checkedAt<GRACE)}
+  function ask(params){
+    return fetch(API+'?'+new URLSearchParams(params),{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('http '+r.status);return r.json()});
+  }
+  function fromReply(j){
+    return {code:j.code,active:!!j.active,status:j.status,name:j.name||'',email:j.email||'',cancelAtPeriodEnd:!!j.cancelAtPeriodEnd,periodEnd:j.periodEnd||null,trialEnd:j.trialEnd||null,checkedAt:Date.now()};
+  }
+  function fmtDate(v){try{return new Date(v).toLocaleDateString('pt-BR',{day:'numeric',month:'short'})}catch(e){return''}}
+
+  function banner(html){
+    var old=document.getElementById('welcome');if(old)old.remove();
+    var bar=document.createElement('div');bar.className='welcome';bar.id='welcome';bar.setAttribute('role','status');
+    bar.innerHTML='<div class="wrap"><span></span><button type="button" aria-label="Fechar aviso">✕</button></div>';
+    bar.querySelector('span').innerHTML=html;
     bar.querySelector('button').onclick=function(){bar.remove()};
     document.body.insertBefore(bar,document.body.firstChild);
-    history.replaceState(null,'',location.pathname+location.hash);
+  }
+  function esc(t){return String(t).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+
+  /* linha de status embaixo dos botões de envio */
+  function paint(){
+    var box=document.getElementById('acc');
+    if(!box){var anchor=document.getElementById('st');if(!anchor)return;box=document.createElement('p');box.id='acc';box.className='acc';anchor.after(box)}
+    var manage=PORTAL?' · <a href="'+PORTAL+'" target="_blank" rel="noopener">Gerenciar assinatura</a>':'';
+    if(active()){
+      var extra=st.status==='trialing'&&st.trialEnd?'Teste grátis até '+fmtDate(st.trialEnd):st.cancelAtPeriodEnd&&st.periodEnd?'Cancelada: acesso até '+fmtDate(st.periodEnd):st.status==='past_due'?'Pagamento pendente: atualize o cartão':'Plano Pro ativo';
+      box.innerHTML='<b>'+esc(extra)+'</b> · código <span class="mono">'+esc(st.code||'')+'</span>'+manage;
+    }else if(st.code){
+      box.innerHTML='<b>Assinatura inativa.</b> Envio bloqueado. <a href="https://buy.stripe.com/4gMfZg8pa0jlcii8zyaAw00" rel="noopener">Assinar de novo</a>'+manage;
+    }else{
+      box.innerHTML='Modo demonstração: para enviar, <a href="#" data-pw>assine (7 dias grátis)</a> ou <a href="#" data-pw>entre com seu código</a>.';
+    }
+  }
+
+  /* bloqueia Enviar / Copiar / PDF sem assinatura ativa */
+  var dlg=document.getElementById('paywall');
+  function openPaywall(){document.getElementById('pw-err').textContent='';if(dlg.showModal)dlg.showModal();else location.hash='#planos'}
+  document.addEventListener('click',function(e){
+    var t=e.target.closest&&e.target.closest('#send,#copy,#pdf,[data-pw]');
+    if(!t)return;
+    if(t.hasAttribute('data-pw')){e.preventDefault();openPaywall();return}
+    if(active())return;
+    e.preventDefault();e.stopImmediatePropagation();openPaywall();
+  },true);
+
+  document.getElementById('pw-form').addEventListener('submit',function(e){
+    e.preventDefault();
+    var input=document.getElementById('pw-code'),err=document.getElementById('pw-err'),go=document.getElementById('pw-go');
+    var code=input.value.trim();
+    if(code.replace(/[^0-9a-z]/gi,'').length!==14){err.textContent='O código tem o formato QZ-XXXX-XXXX-XXXX.';input.focus();return}
+    go.disabled=true;err.textContent='Conferindo…';
+    ask({code:code}).then(function(j){
+      if(!j.found){err.textContent='Código não encontrado. Confira as letras e números.';return}
+      store(fromReply(j));
+      if(!j.active){err.textContent='Essa assinatura não está ativa. Assine de novo para voltar a enviar.';return}
+      dlg.close();banner('<b>Pronto!</b> Acesso liberado neste aparelho.');
+    }).catch(function(){err.textContent='Sem conexão com o servidor. Tente de novo em instantes.'}).then(function(){go.disabled=false});
+  });
+
+  /* volta do checkout: ?assinatura=ok&session_id=cs_... */
+  function activateSession(sid,tries){
+    ask({session_id:sid}).then(function(j){
+      if(j.found){
+        store(fromReply(j));try{localStorage.removeItem(KEY+'.sid')}catch(e){}
+        banner('<b>Assinatura confirmada!</b> Seu teste de 7 dias começou e o recibo chega no seu e-mail. Seu código de acesso é <b class="mono">'+esc(j.code)+'</b>. Anote: ele libera o QuoteZap em outro celular ou computador.');
+        return;
+      }
+      if(tries>0){setTimeout(function(){activateSession(sid,tries-1)},2500);return}
+      banner('<b>Pagamento recebido.</b> A liberação está demorando um pouco. Recarregue a página em 1 minuto ou <a href="https://wa.me/14073755223" target="_blank" rel="noopener">fale com a gente no WhatsApp</a>.');
+    }).catch(function(){
+      if(tries>0){setTimeout(function(){activateSession(sid,tries-1)},2500);return}
+      banner('<b>Pagamento recebido.</b> Sem conexão para liberar agora. Recarregue a página em instantes.');
+    });
+  }
+
+  try{
+    var q=new URLSearchParams(location.search);
+    var sid=q.get('session_id');
+    if(q.get('assinatura')==='ok'){
+      history.replaceState(null,'',location.pathname+location.hash);
+      if(sid&&/^cs_(live|test)_/.test(sid)){try{localStorage.setItem(KEY+'.sid',sid)}catch(e){}}
+      banner('<b>Ativando sua assinatura…</b>');
+    }
+    var pending=null;try{pending=localStorage.getItem(KEY+'.sid')}catch(e){}
+    if(pending&&!active())activateSession(pending,12);
+    else if(st.code){ask({code:st.code}).then(function(j){if(j.found)store(fromReply(j));else store({})}).catch(function(){})}
   }catch(e){}
+
+  document.addEventListener('DOMContentLoaded',paint);
+  if(document.readyState!=='loading')paint();
 })();
 </script>
 
