@@ -1,4 +1,9 @@
-<meta charset="utf-8"><title>QuoteZap</title><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuoteZap</title><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -46,6 +51,8 @@ button,input,select{font:inherit;color:inherit}
 .top nav{display:flex;gap:18px;font-size:14px;font-weight:600}
 .top nav a{color:var(--muted);text-decoration:none}
 .top nav a:hover{color:var(--ink)}
+.top nav a{white-space:nowrap}
+@media (max-width:480px){.top nav{gap:14px}.top nav a[href="#teste"]{display:none}}
 
 /* hero */
 .hero{padding-block:28px 34px;display:grid;gap:18px;max-width:780px}
