@@ -52,7 +52,8 @@ button,input,select{font:inherit;color:inherit}
 .top nav a{color:var(--muted);text-decoration:none}
 .top nav a:hover{color:var(--ink)}
 .top nav a{white-space:nowrap}
-@media (max-width:480px){.top nav{gap:14px}.top nav a[href="#teste"]{display:none}}
+.pro-badge{font-family:var(--f-body,inherit);font-size:11px;font-weight:800;letter-spacing:.06em;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:3px 8px;line-height:1.2;white-space:nowrap;flex-shrink:0}
+@media (max-width:480px){.top nav{gap:14px}.top nav a[href="#teste"],.top nav a[href="#app"]{display:none}}
 
 /* hero */
 .hero{padding-block:28px 34px;display:grid;gap:18px;max-width:780px}
@@ -213,7 +214,7 @@ footer{padding-block:28px 40px;border-top:1px solid var(--line);color:var(--mute
 
 <div class="wrap">
   <header class="top">
-    <div class="brand"><span class="mark" aria-hidden="true">$</span>QuoteZap</div>
+    <div class="brand"><span class="mark" aria-hidden="true">$</span>QuoteZap<span class="pro-badge" id="pro-badge" hidden title="Assinatura ativa">PRO ✓</span></div>
     <nav aria-label="Seções"><a href="#app">Orçamento</a><a href="#planos">Planos</a><a href="#teste">Teste grátis</a></nav>
   </header>
 
@@ -494,6 +495,7 @@ footer{padding-block:28px 40px;border-top:1px solid var(--line);color:var(--mute
   function paint(){
     var box=document.getElementById('acc');
     if(!box){var anchor=document.getElementById('st');if(!anchor)return;box=document.createElement('p');box.id='acc';box.className='acc';anchor.after(box)}
+    var badge=document.getElementById('pro-badge');if(badge)badge.hidden=!active();
     var manage=PORTAL?' · <a href="'+PORTAL+'" target="_blank" rel="noopener">Gerenciar assinatura</a>':'';
     if(active()){
       var extra=st.status==='trialing'&&st.trialEnd?'Teste grátis até '+fmtDate(st.trialEnd):st.cancelAtPeriodEnd&&st.periodEnd?'Cancelada: acesso até '+fmtDate(st.periodEnd):st.status==='past_due'?'Pagamento pendente: atualize o cartão':'Plano Pro ativo';
